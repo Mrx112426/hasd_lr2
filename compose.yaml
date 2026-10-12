@@ -1,0 +1,7 @@
+services:
+  online-retail-loader:
+    build: .
+    image: online-retail-loader:lab2
+    user: "0"
+    volumes:
+      - ./output:/output
