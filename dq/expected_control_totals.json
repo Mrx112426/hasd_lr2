@@ -1,0 +1,21 @@
+{
+  "_source": "Значения из вывода eds.ipynb (DE). Используются только для сверки, не в логике расчёта.",
+  "_sha256": "d07aec9960083af2339975a3f9d3b26313b342dcd9f86cce0b919b1cde639a44",
+  "rows_raw": 541909,
+  "duplicates": 5268,
+  "rows_clean": 536641,
+  "sales_rows": 524877,
+  "goods_sales_rows": 522540,
+  "identified_sales_rows": 392692,
+  "credit_rows": 9251,
+  "other_rows": 2513,
+  "sales_invoices": 19959,
+  "identified_invoices": 18532,
+  "customers": 4372,
+  "customers_with_sales": 4338,
+  "customers_without_sales": 34,
+  "identified_gross_1e4": 88872088940,
+  "no_customer_sales_gbp": 1743839.85,
+  "top5_gross": {"23843": 80995, "23166": 78033, "22197": 56898, "84077": 54951, "85099B": 48371},
+  "top5_net": {"22197": 56427, "84077": 53751, "85099B": 47256, "84879": 36282, "21212": 36016}
+}
