@@ -5,7 +5,6 @@ import org.apache.spark.api.java.JavaRDD;
 import scala.Tuple2;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 
@@ -15,59 +14,47 @@ public final class ProductAnalytics {
     }
 
     public static List<Tuple2<String, ProductMetrics>> top5(JavaRDD<Transaction> sales) {
-        JavaPairRDD<String, Tuple2<Long, BigDecimal>> totals = sales
+        JavaPairRDD<String, ProductMetrics> totals = sales
                 .mapToPair(row -> new Tuple2<>(
                         row.stockCode,
-                        new Tuple2<>(row.quantity, row.lineTotal())
+                        new ProductMetrics("", row.quantity, 0, row.lineTotal())
                 ))
-                .reduceByKey((left, right) -> new Tuple2<>(
-                        left._1 + right._1,
-                        left._2.add(right._2)
-                ));
+                .reduceByKey(ProductMetrics::add);
 
-        JavaPairRDD<String, Long> orderCounts = sales
-                .mapToPair(row -> new Tuple2<>(
-                        row.stockCode + "\u0000" + row.invoiceNo, 1
-                ))
-                .keys()
-                .distinct()
-                .mapToPair(key -> new Tuple2<>(key.split("\u0000", 2)[0], 1L))
-                .reduceByKey(Long::sum);
+        JavaPairRDD<String, ProductMetrics> withOrders = totals
+                .join(countOrders(sales))
+                .mapValues(pair -> pair._1.withOrderCount(pair._2));
 
-        JavaPairRDD<String, String> descriptions = sales
-                .filter(row -> !row.description.isEmpty())
-                .mapToPair(row -> new Tuple2<>(
-                        row.stockCode + "\u0000" + row.description, 1L
-                ))
-                .reduceByKey(Long::sum)
-                .mapToPair(pair -> {
-                    String[] key = pair._1.split("\u0000", 2);
-                    return new Tuple2<>(key[0], new DescriptionCount(key[1], pair._2));
-                })
-                .reduceByKey((left, right) -> DESCRIPTION_ORDER.compare(left, right) <= 0
-                        ? left : right)
-                .mapValues(value -> value.description);
+        JavaPairRDD<String, ProductMetrics> withNames = withOrders
+                .leftOuterJoin(chooseDescriptions(sales))
+                .mapValues(pair -> pair._1.withDescription(pair._2.orElse("")));
 
-        JavaRDD<Tuple2<String, ProductMetrics>> metrics = totals
-                .join(orderCounts)
-                .leftOuterJoin(descriptions)
-                .map(pair -> {
-                    Tuple2<Tuple2<Tuple2<Long, BigDecimal>, Long>,
-                            org.apache.spark.api.java.Optional<String>> value = pair._2;
-                    return new Tuple2<>(pair._1, new ProductMetrics(
-                            value._2.orElse(""),
-                            value._1._1._1,
-                            value._1._2,
-                            value._1._1._2
-                    ));
-                });
-
-        return metrics.takeOrdered(5, new ProductOrder());
+        return withNames.takeOrdered(5, new ProductOrder());
     }
 
-    private static final Comparator<DescriptionCount> DESCRIPTION_ORDER =
-            new DescriptionOrder();
+    private static JavaPairRDD<String, Long> countOrders(JavaRDD<Transaction> sales) {
+        return sales
+                .map(row -> new Tuple2<>(row.stockCode, row.invoiceNo))
+                .distinct()
+                .mapToPair(pair -> new Tuple2<>(pair._1, 1L))
+                .reduceByKey(Long::sum);
+    }
 
+    private static JavaPairRDD<String, String> chooseDescriptions(JavaRDD<Transaction> sales) {
+        // Самое частое непустое название; при равенстве — первое по алфавиту.
+        return sales
+                .filter(row -> !row.description.isEmpty())
+                .mapToPair(row -> new Tuple2<>(
+                        new Tuple2<>(row.stockCode, row.description), 1L
+                ))
+                .reduceByKey(Long::sum)
+                .mapToPair(pair -> new Tuple2<>(pair._1._1,
+                        new DescriptionCount(pair._1._2, pair._2)))
+                .reduceByKey(DescriptionCount::choose)
+                .mapValues(value -> value.description);
+    }
+
+    // Компаратор передаётся исполнителю Spark, поэтому нужен Serializable.
     private static final class ProductOrder
             implements Comparator<Tuple2<String, ProductMetrics>>, Serializable {
         @Override
@@ -81,17 +68,6 @@ public final class ProductAnalytics {
         }
     }
 
-    private static final class DescriptionOrder
-            implements Comparator<DescriptionCount>, Serializable {
-        @Override
-        public int compare(DescriptionCount left, DescriptionCount right) {
-            int byCount = Long.compare(right.count, left.count);
-            return byCount != 0
-                    ? byCount
-                    : left.description.compareTo(right.description);
-        }
-    }
-
     private static final class DescriptionCount implements Serializable {
         final String description;
         final long count;
@@ -99,6 +75,13 @@ public final class ProductAnalytics {
         DescriptionCount(String description, long count) {
             this.description = description;
             this.count = count;
+        }
+
+        DescriptionCount choose(DescriptionCount other) {
+            if (count != other.count) {
+                return count > other.count ? this : other;
+            }
+            return description.compareTo(other.description) <= 0 ? this : other;
         }
     }
 }

@@ -4,7 +4,6 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.storage.StorageLevel;
 
-import java.io.Serializable;
 import java.nio.charset.Charset;
 import java.util.List;
 
@@ -37,7 +36,7 @@ public final class DatasetLoader {
         return new LoadResult(sourceCount, cleanCount, clean);
     }
 
-    public static final class LoadResult implements Serializable {
+    public static final class LoadResult {
         final long sourceCount;
         final long cleanCount;
         final JavaRDD<Transaction> clean;

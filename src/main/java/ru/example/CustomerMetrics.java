@@ -13,11 +13,17 @@ public final class CustomerMetrics implements Serializable {
         this.totalSpent = totalSpent;
     }
 
+    CustomerMetrics add(CustomerMetrics other) {
+        return new CustomerMetrics(
+                ordersCount + other.ordersCount, totalSpent.add(other.totalSpent)
+        );
+    }
+
     BigDecimal averageOrderValue() {
         if (ordersCount == 0) {
             return null;
         }
-        return totalSpent.divide(BigDecimal.valueOf(ordersCount), 8,
+        return totalSpent.divide(BigDecimal.valueOf(ordersCount), 2,
                 java.math.RoundingMode.HALF_UP);
     }
 }

@@ -1,6 +1,7 @@
 package ru.example;
 
 import org.apache.spark.api.java.JavaRDD;
+import scala.Tuple2;
 
 import java.util.Locale;
 import java.util.Set;
@@ -40,12 +41,9 @@ public final class DatasetValidator {
     public static void assertNoCustomerConflicts(JavaRDD<Transaction> rows) {
         long conflicts = rows
                 .filter(row -> !row.customerId.isEmpty())
-                .mapToPair(row -> new scala.Tuple2<>(
-                        row.invoiceNo + "\u0000" + row.customerId, 1
-                ))
-                .keys()
+                .map(row -> new Tuple2<>(row.invoiceNo, row.customerId))
                 .distinct()
-                .mapToPair(key -> new scala.Tuple2<>(key.split("\u0000", 2)[0], 1L))
+                .mapToPair(pair -> new Tuple2<>(pair._1, 1L))
                 .reduceByKey(Long::sum)
                 .filter(pair -> pair._2 > 1)
                 .count();

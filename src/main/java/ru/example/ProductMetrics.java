@@ -20,4 +20,17 @@ public final class ProductMetrics implements Serializable {
         this.ordersWithProduct = ordersWithProduct;
         this.grossValue = grossValue;
     }
+
+    ProductMetrics add(ProductMetrics other) {
+        return new ProductMetrics("", totalQuantity + other.totalQuantity,
+                0, grossValue.add(other.grossValue));
+    }
+
+    ProductMetrics withOrderCount(long count) {
+        return new ProductMetrics(description, totalQuantity, count, grossValue);
+    }
+
+    ProductMetrics withDescription(String name) {
+        return new ProductMetrics(name, totalQuantity, ordersWithProduct, grossValue);
+    }
 }

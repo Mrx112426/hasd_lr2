@@ -1,6 +1,7 @@
 package ru.example;
 
 import org.apache.spark.api.java.JavaPairRDD;
+import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import scala.Tuple2;
 
@@ -34,19 +35,17 @@ public final class ResultWriter {
             JavaSparkContext context,
             JavaPairRDD<String, BigDecimal> orders,
             String outputDirectory) {
-        JavaPairRDD<String, String> sorted = orders
-                .mapToPair(pair -> {
+        JavaRDD<String> rows = orders.sortByKey(true)
+                .map(pair -> {
                     String[] key = pair._1.split("\u0000", 2);
-                    String line = csv(key[0]) + "," + csv(key[1])
+                    return csv(key[0]) + "," + csv(key[1])
                             + "," + decimal4(pair._2);
-                    return new Tuple2<>(pair._1, line);
-                })
-                .sortByKey(true);
+                });
 
         saveWithHeader(
                 context,
                 "CustomerID,InvoiceNo,order_total",
-                sorted.values(),
+                rows,
                 outputDirectory + "/orders.csv"
         );
     }
@@ -55,21 +54,19 @@ public final class ResultWriter {
             JavaSparkContext context,
             JavaPairRDD<String, CustomerMetrics> metrics,
             String outputDirectory) {
-        JavaPairRDD<String, String> sorted = metrics
-                .mapToPair(pair -> {
+        JavaRDD<String> rows = metrics.sortByKey(true)
+                .map(pair -> {
                     CustomerMetrics metric = pair._2;
                     BigDecimal average = metric.averageOrderValue();
-                    String line = csv(pair._1) + "," + metric.ordersCount
+                    return csv(pair._1) + "," + metric.ordersCount
                             + "," + money(metric.totalSpent)
                             + "," + (average == null ? "" : money(average));
-                    return new Tuple2<>(pair._1, line);
-                })
-                .sortByKey(true);
+                });
 
         saveWithHeader(
                 context,
                 "CustomerID,orders_count,total_spent,average_order_value",
-                sorted.values(),
+                rows,
                 outputDirectory + "/customer_metrics.csv"
         );
     }
@@ -77,7 +74,7 @@ public final class ResultWriter {
     private static void saveWithHeader(
             JavaSparkContext context,
             String header,
-            org.apache.spark.api.java.JavaRDD<String> rows,
+            JavaRDD<String> rows,
             String path) {
         context.parallelize(List.of(header), 1)
                 .union(rows.coalesce(1))
